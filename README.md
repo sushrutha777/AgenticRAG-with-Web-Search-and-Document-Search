@@ -14,7 +14,7 @@ This project is a **Multi-source Agentic RAG system** built with **Streamlit,Lan
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/sushrutha777/Stock_Movement_Reason_Finder.git
+   git clone https://github.com/sushrutha777/RAG.git
    cd End-To-End-RAG-Search
 2. Install uv(If not installed):
    ```bash
@@ -23,7 +23,6 @@ This project is a **Multi-source Agentic RAG system** built with **Streamlit,Lan
    ```bash
     # Create virtual environment
     uv venv
-
     # Activate the virtual environment
     # On Windows:
     .venv\Scripts\activate
