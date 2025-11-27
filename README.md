@@ -1,7 +1,7 @@
 # End To End RAG Document Search
 
-This project is a **Multi-source Agentic RAG system** built with **Streamlit,LangChain,** and **LangGraph.** It enables users to chat with their data regardless of the format. It supports **PDFs, Text files, and Website URLs** 
-A **ReAct-based agent** intelligently retrieves information from both your uploaded documents and external sources, delivering accurate, context-aware answers powered by Google Gemini 2.5 models.
+- This project is a **Multi-source Agentic RAG system** built with **Streamlit,LangChain,** and **LangGraph.** It enables users to chat with their data regardless of the format. It supports **PDFs, Text files, and Website URLs** 
+- A **ReAct-based agent** intelligently retrieves information from both your uploaded documents and external sources, delivering accurate, context-aware answers powered by Google Gemini 2.5 models.
 
 ## 🚀 Features
 - **Universal Data Support:** Seamlessly ingest and process PDF documents, Text files (.txt),    and Website URLs.
