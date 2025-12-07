@@ -20,10 +20,7 @@
 2. Install uv(If not installed):
    ```bash
    pip install uv
-3. Initialize a New Projectc(for uv)
-   ```bash
-   uv init
-4. Create Virtual Environment:
+3. Create Virtual Environment:
    ```bash
     # Create virtual environment
     uv venv
@@ -32,12 +29,12 @@
     .venv\Scripts\activate
     # On macOS/Linux:
     source .venv/bin/activate
-5. Install the required dependencies:
+4. Install the required dependencies:
    ```bash
     uv add -r requirements.txt
-6. Create a .env file in the project root and add your Google Gemini API key:
+5. Create a .env file in the project root and add your Google Gemini API key:
    ```bash
     GEMINI_API_KEY=your_api_key_here
-7. Run the Streamlit app:
+6. Run the Streamlit app:
    ```bash
     streamlit run app.py
