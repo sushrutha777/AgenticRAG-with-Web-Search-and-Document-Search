@@ -15,7 +15,7 @@ class Config:
     
     # Model Configuration
     # syntax: "provider:model_name"
-    LLM_MODEL = "google_genai:gemini-2.5-pro"
+    LLM_MODEL = "google_genai:gemini-2.5-flash"
     
     # Document Processing
     CHUNK_SIZE = 500
