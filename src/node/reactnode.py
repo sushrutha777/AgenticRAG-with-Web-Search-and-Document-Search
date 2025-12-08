@@ -1,11 +1,10 @@
 """LangGraph nodes for RAG workflow with custom ReAct agent."""
+import json
+import re
 
-from typing import List, Optional
+from typing import List
 from src.state.rag_state import RAGState
-
 from langchain_core.tools import Tool
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_core.documents import Document
 
 
 class RAGNodes:
@@ -19,14 +18,13 @@ class RAGNodes:
     # 1. RETRIEVE DOCUMENTS NODE
     def retrieve_docs(self, state: RAGState) -> RAGState:
         """Retrieve relevant docs for the given question."""
-        docs = self.retriever.invoke(state.question)   # <-- FIXED
+        docs = self.retriever.invoke(state.question)  
         state.retrieved_docs = docs
         return state
 
     # 2. BUILD TOOLSET (retriever + wikipedia + websearch)
     def _build_tools(self):
         from langchain_community.utilities import WikipediaAPIWrapper
-        from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
         from langchain_community.tools.ddg_search import DuckDuckGoSearchRun
         from langchain_core.documents import Document
 
@@ -57,12 +55,13 @@ class RAGNodes:
             description="Search Wikipedia for general knowledge.",
             func=wiki_api.run,
         )
-        # FREE DUCKDUCKGO WEB SEARCH TOOL
+
+        # DUCKDUCKGO WEB SEARCH TOOL
         ddg = DuckDuckGoSearchRun()
     
         websearch_tool = Tool(
             name="web_search",
-            description="Free unlimited web search using DuckDuckGo.",
+            description="Unlimited web search using DuckDuckGo.",
             func=ddg.run,
         )
         # REGISTER ALL TOOLS
@@ -84,55 +83,106 @@ class RAGNodes:
 
     # 4. GENERATE ANSWER WITH CUSTOM REACT LOOP
     def generate_answer(self, state: RAGState) -> RAGState:
-        """Generate answer using a manual ReAct loop."""
+        """Generate answer using a manual ReAct loop (with web_search for latest info)."""
         question = state.question
 
         if not self.tools:
             self._build_tools()
 
-        # Step 1: Ask LLM what to do
+        # detect time-sensitive / "latest" style questions 
+        q_lower = question.lower()
+        time_sensitive_keywords = [
+            "latest", "today", "yesterday", "current", "now", "recent", "this year",
+            "winner", "champion", "election", "price", "score", "result",
+            "who is", "who won", "What happend","who was", "2023", "2024", "2025","2026"
+        ]
+        is_time_sensitive = any(k in q_lower for k in time_sensitive_keywords)
+
+        # If clearly time-sensitive, strongly bias towards web_search
+        forced_tool = None
+        if "web_search" in self.tools and is_time_sensitive:
+            forced_tool = "web_search"
+
+        # Step 1: Ask LLM what to do (ReAct decision) 
         think_prompt = (
-            "You are a ReAct agent.\n"
-            "Tools available: retriever, wikipedia.\n"
-            "Decide whether to answer directly OR call a tool.\n"
-            "Respond EXACTLY in this JSON format:\n\n"
+            "You are a ReAct-style agent with access to tools.\n"
+            "Available tools:\n"
+            "  - retriever: search the internal indexed corpus.\n"
+            "  - wikipedia: general encyclopedic knowledge (may be slightly outdated).\n"
+            "  - web_search: real-time web search, always up-to-date.\n\n"
+            "CRITICAL RULES:\n"
+            "1. If the question involves recent events, sports results, elections, champions, "
+            "   financial markets, 'latest', 'current', 'today', or specific years like 2023/2024/2025,\n"
+            "   you MUST use the 'web_search' tool.\n"
+            "2. Only answer directly with no tool if you are VERY sure the answer is timeless.\n"
+            "3. Respond EXACTLY in this JSON format (no extra text):\n\n"
             "{\n"
-            '  "tool": "<tool name or none>",\n'
-            '  "input": "<tool input or empty>"\n'
+            '  "tool": "<retriever | wikipedia | web_search | none>",\n'
+            '  "input": "<tool input or empty if none>"\n'
             "}\n\n"
             f"User question: {question}"
         )
 
-        try:
-            decision_msg = self.llm.invoke(think_prompt)
-            decision_text = getattr(decision_msg, "content", str(decision_msg))
-        except Exception as e:
-            state.answer = f"LLM error: {e}"
-            return state
-
-        import json
         tool = None
         tool_input = question
 
-        try:
-            parsed = json.loads(decision_text)
-            tool = parsed.get("tool")
-            if parsed.get("input"):
-                tool_input = parsed["input"]
-        except:
-            pass
+        # If we already decided it's time-sensitive, we can skip LLM decision if you want.
+        # But better: still let LLM choose input phrasing, while forcing the tool.
+        if forced_tool:
+            try:
+                decision_msg = self.llm.invoke(think_prompt)
+                decision_text = getattr(decision_msg, "content", str(decision_msg)).strip()
+                parsed = json.loads(decision_text)
+                tool_input = parsed.get("input") or question
+            except Exception:
+                tool_input = question
+            tool = forced_tool  # override whatever the model chose
+        else:
+            # Normal path: let LLM decide tool & input
+            try:
+                decision_msg = self.llm.invoke(think_prompt)
+                decision_text = getattr(decision_msg, "content", str(decision_msg)).strip()
+            except Exception as e:
+                state.answer = f"LLM error during decision step: {e}"
+                return state
 
-        # Step 2: Run selected tool
+            # Step 1b: Robust JSON parsing fallback 
+            try:
+                parsed = json.loads(decision_text)
+                tool = (parsed.get("tool") or "none").lower()
+                if parsed.get("input"):
+                    tool_input = parsed["input"]
+            except Exception:
+                # Try to extract a tool name with regex as a fallback
+                m = re.search(r'"tool"\s*:\s*"([^"]+)"', decision_text)
+                tool = m.group(1).lower() if m else "none"
+                tool_input = question
+
+        # Step 2: Run selected tool (if any)
         tool_result = ""
-        if tool and tool.lower() in self.tools:
-            tool_result = self._run_tool(tool.lower(), tool_input)
+        used_tool_name = "none"
+
+        if tool and tool != "none" and tool.lower() in self.tools:
+            used_tool_name = tool.lower()
+            tool_result = self._run_tool(used_tool_name, tool_input)
+        else:
+            # No tool: we'll answer from prior knowledge only
+            tool_result = "No external tool was used. Answer from your own knowledge."
 
         # Step 3: Final Answer Synthesis
         final_prompt = (
-            "You previously chose a tool. Here is its result:\n\n"
+            "You are an expert assistant.\n\n"
+            f"User question:\n{question}\n\n"
+            f"Tool chosen: {used_tool_name}\n"
+            f"Tool input: {tool_input}\n\n"
+            "Tool result (may be empty or noisy, but do your best to extract the answer):\n"
             f"{tool_result}\n\n"
-            "Now answer the user's original question:\n"
-            f"{question}\n\n"
+            "Instructions for your final answer:\n"
+            "1. If the tool_result clearly contains the answer, use it and explain concisely.\n"
+            "2. If the tool_result is empty or unhelpful, you may answer from your own knowledge, "
+            "   but make it clear it's based on general knowledge and may be outdated.\n"
+            "3. Do NOT mention that you are using tools, ReAct, or internal reasoning.\n"
+            "4. Just give a natural, direct answer for the user.\n\n"
             "Final Answer:"
         )
 
