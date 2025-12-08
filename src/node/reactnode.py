@@ -23,46 +23,55 @@ class RAGNodes:
         state.retrieved_docs = docs
         return state
 
-    # 2. BUILD TOOLSET (retriever + wikipedia)
+    # 2. BUILD TOOLSET (retriever + wikipedia + websearch)
     def _build_tools(self):
         from langchain_community.utilities import WikipediaAPIWrapper
         from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
+        from langchain_community.tools.ddg_search import DuckDuckGoSearchRun
+        from langchain_core.documents import Document
 
-        # Retriever tool
+        # RETRIEVER TOOL
         def retriever_tool_fn(query: str) -> str:
-            docs: List[Document] = self.retriever.invoke(query)   # <-- FIXED
+            docs: List[Document] = self.retriever.invoke(query)
             if not docs:
                 return "No documents found."
-
+    
             merged = []
             for i, d in enumerate(docs[:8], start=1):
                 meta = getattr(d, "metadata", {})
                 title = meta.get("title") or meta.get("source") or f"doc_{i}"
                 merged.append(f"[{i}] {title}\n{d.page_content}")
-
+    
             return "\n\n".join(merged)
-
+    
         retriever_tool = Tool(
             name="retriever",
             description="Search indexed corpus for relevant text.",
             func=retriever_tool_fn,
         )
-
-        # Wikipedia tool
+    
+        # WIKIPEDIA TOOL
         wiki_api = WikipediaAPIWrapper(top_k_results=3, lang="en")
-        wiki = WikipediaQueryRun(api_wrapper=wiki_api)
-
         wikipedia_tool = Tool(
             name="wikipedia",
             description="Search Wikipedia for general knowledge.",
-            func=wiki.run,
+            func=wiki_api.run,
         )
-
+        # FREE DUCKDUCKGO WEB SEARCH TOOL
+        ddg = DuckDuckGoSearchRun()
+    
+        websearch_tool = Tool(
+            name="web_search",
+            description="Free unlimited web search using DuckDuckGo.",
+            func=ddg.run,
+        )
+        # REGISTER ALL TOOLS
         self.tools = {
             "retriever": retriever_tool,
             "wikipedia": wikipedia_tool,
+            "web_search": websearch_tool,
         }
-
+        
     # 3. EXECUTE A TOOL BY NAME
     def _run_tool(self, name: str, input: str) -> str:
         tool = self.tools.get(name)
