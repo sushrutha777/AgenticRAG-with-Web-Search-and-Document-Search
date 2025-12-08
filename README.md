@@ -34,7 +34,7 @@
     uv add -r requirements.txt
 5. Create a .env file in the project root and add your Google Gemini API key:
    ```bash
-    GEMINI_API_KEY=your_api_key_here
+    GOOGLE_API_KEY=your_api_key_here
 6. Run the Streamlit app:
    ```bash
     streamlit run app.py
