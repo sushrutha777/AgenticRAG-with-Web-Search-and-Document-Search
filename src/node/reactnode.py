@@ -1,95 +1,137 @@
-"""LangGraph nodes for RAG workflow + ReAct Agent inside generate_content"""
+"""LangGraph nodes for RAG workflow with custom ReAct agent."""
 
 from typing import List, Optional
 from src.state.rag_state import RAGState
 
-from langchain_core.documents import Document
 from langchain_core.tools import Tool
-from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
-
-# Wikipedia tool
-from langchain_community.utilities import WikipediaAPIWrapper
-from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.documents import Document
 
 
 class RAGNodes:
-    """Contains node functions for RAG workflow"""
+    """Contains node functions for RAG workflow."""
 
     def __init__(self, retriever, llm):
-        self.retriever = retriever
-        self.llm = llm
-        self._agent = None  # lazy-init agent
+        self.retriever = retriever      # VectorStoreRetriever
+        self.llm = llm                  # Chat model
+        self.tools = {}
 
+    # 1. RETRIEVE DOCUMENTS NODE
     def retrieve_docs(self, state: RAGState) -> RAGState:
-        """Classic retriever node"""
-        docs = self.retriever.invoke(state.question)
-        return RAGState(
-            question=state.question,
-            retrieved_docs=docs
-        )
+        """Retrieve relevant docs for the given question."""
+        docs = self.retriever.invoke(state.question)   # <-- FIXED
+        state.retrieved_docs = docs
+        return state
 
-    def _build_tools(self) -> List[Tool]:
-        """Build retriever + wikipedia tools"""
+    # 2. BUILD TOOLSET (retriever + wikipedia)
+    def _build_tools(self):
+        from langchain_community.utilities import WikipediaAPIWrapper
+        from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
 
+        # Retriever tool
         def retriever_tool_fn(query: str) -> str:
-            docs: List[Document] = self.retriever.invoke(query)
+            docs: List[Document] = self.retriever.invoke(query)   # <-- FIXED
             if not docs:
                 return "No documents found."
+
             merged = []
             for i, d in enumerate(docs[:8], start=1):
-                meta = d.metadata if hasattr(d, "metadata") else {}
+                meta = getattr(d, "metadata", {})
                 title = meta.get("title") or meta.get("source") or f"doc_{i}"
                 merged.append(f"[{i}] {title}\n{d.page_content}")
+
             return "\n\n".join(merged)
 
         retriever_tool = Tool(
             name="retriever",
-            description="Fetch passages from indexed corpus.",
+            description="Search indexed corpus for relevant text.",
             func=retriever_tool_fn,
         )
 
-        wiki = WikipediaQueryRun(
-            api_wrapper=WikipediaAPIWrapper(top_k_results=3, lang="en")
-        )
+        # Wikipedia tool
+        wiki_api = WikipediaAPIWrapper(top_k_results=3, lang="en")
+        wiki = WikipediaQueryRun(api_wrapper=wiki_api)
+
         wikipedia_tool = Tool(
             name="wikipedia",
             description="Search Wikipedia for general knowledge.",
             func=wiki.run,
         )
 
-        return [retriever_tool, wikipedia_tool]
+        self.tools = {
+            "retriever": retriever_tool,
+            "wikipedia": wikipedia_tool,
+        }
 
-    def _build_agent(self):
-        """ReAct agent with tools"""
-        tools = self._build_tools()
-        system_prompt = (
-            "You are a helpful RAG agent. "
-            "Prefer 'retriever' for user-provided docs; use 'wikipedia' for general knowledge. "
-            "Return only the final useful answer."
-        )
-        self._agent = create_react_agent(self.llm, tools=tools,prompt=system_prompt)
+    # 3. EXECUTE A TOOL BY NAME
+    def _run_tool(self, name: str, input: str) -> str:
+        tool = self.tools.get(name)
+        if not tool:
+            return f"Tool '{name}' does not exist."
+        try:
+            return tool.func(input)
+        except Exception as e:
+            return f"Tool '{name}' failed: {e}"
 
+    # 4. GENERATE ANSWER WITH CUSTOM REACT LOOP
     def generate_answer(self, state: RAGState) -> RAGState:
-        """
-        Generate answer using ReAct agent with retriever + wikipedia.
-        """
-        if self._agent is None:
-            self._build_agent()
+        """Generate answer using a manual ReAct loop."""
+        question = state.question
 
-        result = self._agent.invoke({"messages": [HumanMessage(content=state.question)]})
-        # ReAct agent usually returns result["output"]
-        answer = None
+        if not self.tools:
+            self._build_tools()
 
-        if isinstance(result, dict):
-            if "output" in result:
-                answer = result["output"]
-            # fallback: some agent implementations return list of messages
-            elif "messages" in result and result["messages"]:
-                last_msg = result["messages"][-1]
-                answer = getattr(last_msg, "content", None)
+        # Step 1: Ask LLM what to do
+        think_prompt = (
+            "You are a ReAct agent.\n"
+            "Tools available: retriever, wikipedia.\n"
+            "Decide whether to answer directly OR call a tool.\n"
+            "Respond EXACTLY in this JSON format:\n\n"
+            "{\n"
+            '  "tool": "<tool name or none>",\n'
+            '  "input": "<tool input or empty>"\n'
+            "}\n\n"
+            f"User question: {question}"
+        )
 
-        return RAGState(
-            question=state.question,
-            retrieved_docs=state.retrieved_docs,
-            answer=answer or "Could not generate answer.")
+        try:
+            decision_msg = self.llm.invoke(think_prompt)
+            decision_text = getattr(decision_msg, "content", str(decision_msg))
+        except Exception as e:
+            state.answer = f"LLM error: {e}"
+            return state
+
+        import json
+        tool = None
+        tool_input = question
+
+        try:
+            parsed = json.loads(decision_text)
+            tool = parsed.get("tool")
+            if parsed.get("input"):
+                tool_input = parsed["input"]
+        except:
+            pass
+
+        # Step 2: Run selected tool
+        tool_result = ""
+        if tool and tool.lower() in self.tools:
+            tool_result = self._run_tool(tool.lower(), tool_input)
+
+        # Step 3: Final Answer Synthesis
+        final_prompt = (
+            "You previously chose a tool. Here is its result:\n\n"
+            f"{tool_result}\n\n"
+            "Now answer the user's original question:\n"
+            f"{question}\n\n"
+            "Final Answer:"
+        )
+
+        try:
+            final_msg = self.llm.invoke(final_prompt)
+            answer = getattr(final_msg, "content", str(final_msg))
+        except Exception as e:
+            answer = f"LLM error during final answer: {e}"
+
+        state.answer = answer
+        return state

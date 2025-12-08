@@ -9,7 +9,7 @@ from langchain_community.document_loaders import (
     PyPDFDirectoryLoader,
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 class DocumentProcessor:
     """Handles document loading and processing."""
@@ -85,7 +85,6 @@ class DocumentProcessor:
                     f"Unsupported source type: {src}. "
                     "Use URL, .txt file, .pdf file, or a directory of PDFs."
                 )
-
         return docs
 
     def split_documents(self, documents: List[Document]) -> List[Document]:

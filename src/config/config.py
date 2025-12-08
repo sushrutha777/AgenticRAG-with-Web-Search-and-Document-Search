@@ -19,8 +19,7 @@ class Config:
 
     # Default URLs (if you ever want to use web docs)
     DEFAULT_URLS = [
-        "https://lilianweng.github.io/posts/2023-06-23-agent/",
-        "https://lilianweng.github.io/posts/2024-04-12-diffusion-video/",
+        "https://lilianweng.github.io/posts/2023-06-23-agent/"
     ]
 
     @classmethod
