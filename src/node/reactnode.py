@@ -78,15 +78,18 @@ class RAGNodes:
             self._build_agent()
 
         result = self._agent.invoke({"messages": [HumanMessage(content=state.question)]})
+        # ReAct agent usually returns result["output"]
+        answer = None
 
-        messages = result.get("messages", [])
-        answer: Optional[str] = None
-        if messages:
-            answer_msg = messages[-1]
-            answer = getattr(answer_msg, "content", None)
+        if isinstance(result, dict):
+            if "output" in result:
+                answer = result["output"]
+            # fallback: some agent implementations return list of messages
+            elif "messages" in result and result["messages"]:
+                last_msg = result["messages"][-1]
+                answer = getattr(last_msg, "content", None)
 
         return RAGState(
             question=state.question,
             retrieved_docs=state.retrieved_docs,
-            answer=answer or "Could not generate answer."
-        )
+            answer=answer or "Could not generate answer.")
