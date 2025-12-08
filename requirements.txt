@@ -10,5 +10,5 @@ beautifulsoup4
 requests
 streamlit
 wikipedia
-ipykernel
+ddgs
 pypdf
