@@ -20,7 +20,7 @@ class VectorStore:
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
 
         self.embedding = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-001",
+            model="models/embedding-001",
             google_api_key=api_key,
         )
         self.vectorstore = None
