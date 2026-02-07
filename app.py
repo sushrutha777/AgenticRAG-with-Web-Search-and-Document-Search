@@ -1,4 +1,11 @@
 """app.py — RAG Search with left-side history only (handles non-string answers)"""
+import os
+
+# Gemini to use v1 (not v1beta)
+os.environ["GOOGLE_GENAI_API_VERSION"] = "v1"
+
+# Silence USER_AGENT warning
+os.environ["USER_AGENT"] = "CollegeRAG/1.0 (student project)"
 
 import streamlit as st
 from pathlib import Path
@@ -37,20 +44,69 @@ def init_session_state():
         st.session_state.selected_history_index = None
 
 
+# Path to save the FAISS index
+VECTORSTORE_PATH = "faiss_index"
+
 @st.cache_resource
-def initialize_rag():
-    """Cached initialization of RAG components — runs once."""
+def initialize_rag(rebuild_index: bool = False):
+    """
+    Cached initialization of RAG components.
+    
+    Args:
+        rebuild_index: If True, force re-embedding of documents.
+    """
     llm = Config.get_llm()
     doc_processor = DocumentProcessor(
         chunk_size=Config.CHUNK_SIZE, chunk_overlap=Config.CHUNK_OVERLAP
     )
     vector_store = VectorStore()
-    urls = Config.DEFAULT_URLS
-    documents = doc_processor.process_urls(urls)
-    vector_store.create_vectorstore(documents)
+    
+    # Check if index exists and we don't want to rebuild
+    if os.path.exists(VECTORSTORE_PATH) and not rebuild_index:
+        try:
+            vector_store.load_index(VECTORSTORE_PATH)
+            # We can't easily know the doc count without metadata on disk, 
+            # so we'll just say "Loaded from disk"
+            doc_count = "Loaded from disk"
+        except Exception as e:
+            st.warning(f"Failed to load existing index: {e}. Rebuilding...")
+            rebuild_index = True
+            
+    # If we need to build (fresh start or rebuild requested)
+    if not os.path.exists(VECTORSTORE_PATH) or rebuild_index:
+        # Combine URLs from config and local files from 'data' folder
+        sources = Config.DEFAULT_URLS
+        if os.path.exists("data"):
+            sources.append("data")
+            
+        documents = doc_processor.process_urls(sources)
+        
+        # Progress bar UI
+        progress_bar = st.progress(0, text="Starting ingestion...")
+        status_text = st.empty()
+        
+        def update_progress(msg, percent):
+            # percent is 0.0 to 1.0
+            p = min(max(percent, 0.0), 1.0)
+            progress_bar.progress(p, text=msg)
+
+        try:
+            vector_store.create_vectorstore(documents, progress_callback=update_progress)
+            vector_store.save_index(VECTORSTORE_PATH)
+            doc_count = len(documents)
+            
+            progress_bar.progress(1.0, text="Ingestion complete!")
+            time.sleep(1) # Let user see 100%
+            progress_bar.empty()
+            status_text.empty()
+            
+        except Exception as e:
+            st.error(f"Ingestion failed: {e}")
+            raise e
+
     graph_builder = GraphBuilder(retriever=vector_store.get_retriever(), llm=llm)
     graph_builder.build()
-    return graph_builder, len(documents)
+    return graph_builder, doc_count
 
 
 def normalize_answer(ans) -> str:
@@ -125,8 +181,8 @@ def render_chat_view(hist_index: int | None):
 def main():
     init_session_state()
 
-    st.title("RAG Document Search")
-    st.markdown("Ask questions about the loaded documents")
+    st.title("Agentic RAG: Docs, Web & Wiki")
+    st.markdown("Ask questions about your **Documents**, **Wikipedia**, or **Web Search**.")
 
     # Initialize RAG once (cached)
     if not st.session_state.initialized:
@@ -176,6 +232,27 @@ def main():
                 st.rerun()
         else:
             st.info("No history yet. Ask something!")
+
+        st.markdown("---")
+        if st.button("Rebuild Index"):
+            st.session_state.initialized = False
+            st.session_state.rag_system = None
+            # Clearing cache resource to force re-run of initialize_rag
+            st.cache_resource.clear()
+            # We set a flag in session state if we want to pass it, 
+            # but since we cleared cache, the next call will run.
+            # However, initialize_rag needs to know to rebuild.
+            # Since we can't easily pass args to cached function without changing cache key every time,
+            # we can rely on clearing the cache and manually deleting the folder or 
+            # simpler: Just use a flag here to tell the main loop to call with rebuild=True
+            if os.path.exists(VECTORSTORE_PATH):
+                import shutil
+                try:
+                    shutil.rmtree(VECTORSTORE_PATH)
+                    st.success("Index deleted. App will rebuild on reload.")
+                except Exception as e:
+                    st.error(f"Error deleting index: {e}")
+            st.rerun()
 
     # Main area: show selected chat if any
     selected_idx = st.session_state.get("selected_history_index", None)

@@ -4,7 +4,7 @@
 - A **ReAct-based agent** intelligently retrieves information from both your uploaded documents and external sources, delivering accurate, context-aware answers powered by Google Gemini 2.5 models.
 
 ## 🚀 Features
-- **Universal Data Support:** Seamlessly ingest and process PDF documents, Text files (.txt),    and Website URLs.
+- **Universal Data Support:** Seamlessly ingest and process **text contents** from PDF documents, Text files (.txt), and Website URLs (*Images/Charts are currently ignored*).
 - **Agentic Workflow:** Powered by LangChain and LangGraph to orchestrate retrieval, reasoning, and answer generation.
 - **Google Gemini Integration:** Utilizes Gemini 2.5 Flash/Pro for fast and accurate reasoning.
 - **Smart Embeddings:** Uses Google Generative AI Embeddings for semantic search across different data formats.
@@ -38,3 +38,9 @@
 6. Run the Streamlit app:
    ```bash
     streamlit run app.py
+
+## 🔮 Future Roadmap
+- **Multimodal Support**: Upgrade document ingestion to extract images from PDFs and URLs.
+- **Vision Embeddings**: Integrate multimodal embedding models (e.g., CLIP, Google Multimodal Embeddings) to enable searching for charts, diagrams, and photos.
+- **Multimodal LLM Processing**: Leverage Gemini's native vision capabilities to "read" complex charts and layouts directly (replacing traditional OCR).
+

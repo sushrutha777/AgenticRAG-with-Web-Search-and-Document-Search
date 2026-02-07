@@ -1,0 +1,30 @@
+SpaceX Starship and Mars Colonization Overview
+
+1. Starship Launch Vehicle
+Starship is a fully reusable, super heavy-lift launch vehicle under development by SpaceX. It is the tallest and most powerful rocket ever built.
+- Height: 121 meters (397 ft) stacked.
+- Stages: Two stages.
+  - First Stage: Super Heavy booster (33 Raptor engines).
+  - Second Stage: Starship spacecraft (6 Raptor engines).
+- Payload Capacity: 100–150 tonnes to Low Earth Orbit (LEO) in fully reusable configuration.
+- Fuel: Liquid methane (CH4) and liquid oxygen (LOX), known as Methalox.
+
+2. Mars Colonization Plans
+Elon Musk's goal involves sending the first uncrewed Starship to Mars within a few launch windows (launch windows occur every 26 months).
+- Objective: Establish a self-sustaining city on Mars.
+- Fleet: Musk envisions building 1,000 Starships to transport 1 million people to Mars by 2050.
+- In-Situ Resource Utilization (ISRU): The plan relies on manufacturing fuel on Mars using water ice and atmospheric CO2 (Sabatier reaction).
+
+3. Key Milestones
+- IFT-4 (Flight 4): Successfully demonstrated soft splashodwn of both Super Heavy and Starship in the ocean in June 2024.
+- Launch Site: Starbase, Boca Chica, Texas.
+- Artemis Program: NASA selected a variant of Starship (HLS) to land astronauts on the Moon for the Artemis III mission.
+
+4. Raptor Engines
+- The Raptor is a full-flow staged combustion cycle engine.
+- It is designed to be highly efficient and reusable.
+- Thrust: Raptor 2 produces roughly 230 tonnes of force.
+
+5. Recent Developments (2024-2025 Context)
+- Focus is on achieving full reuse: catching the Super Heavy booster with the "Mechazilla" tower arms (nicknamed "Chopsticks").
+- Orbital refuelling tests are crucial for deep space missions.

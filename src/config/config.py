@@ -11,7 +11,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
     # LLM configuration (LangChain syntax: "provider:model_name")
-    LLM_MODEL = "google_genai:gemini-2.5-flash"
+    LLM_MODEL = "google_genai:gemini-2.0-flash"
 
     # Document processing
     CHUNK_SIZE = 500
@@ -19,7 +19,7 @@ class Config:
 
     # Default URLs (if you ever want to use web docs)
     DEFAULT_URLS = [
-        "https://lilianweng.github.io/posts/2023-06-23-agent/"
+        "https://en.wikipedia.org/wiki/SpaceX_Starship"
     ]
 
     @classmethod

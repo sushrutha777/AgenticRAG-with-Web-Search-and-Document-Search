@@ -76,9 +76,14 @@ class DocumentProcessor:
             elif src_path.suffix.lower() == ".txt":
                 docs.extend(self.load_from_txt(src_path))
 
-            # Directory containing PDFs
+            # Directory containing files
             elif src_path.is_dir():
-                docs.extend(self.load_from_pdf_dir(src_path))
+                # Manually scan for supported files (recursive)
+                for file_path in src_path.rglob("*"):
+                    if file_path.suffix.lower() == ".pdf":
+                        docs.extend(self.load_from_pdf(file_path))
+                    elif file_path.suffix.lower() == ".txt":
+                        docs.extend(self.load_from_txt(file_path))
 
             else:
                 raise ValueError(

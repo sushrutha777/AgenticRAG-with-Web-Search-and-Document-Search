@@ -57,4 +57,15 @@ class GraphBuilder:
             self.build()
         
         initial_state = RAGState(question=question)
-        return self.graph.invoke(initial_state)
+        result = self.graph.invoke(initial_state)
+        
+        # Ensure result is a dict for app.py
+        if not isinstance(result, dict):
+            # Try Pydantic v2
+            if hasattr(result, "model_dump"):
+                return result.model_dump()
+            # Try Pydantic v1
+            if hasattr(result, "dict"):
+                return result.dict()
+                
+        return result
