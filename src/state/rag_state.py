@@ -9,4 +9,6 @@ class RAGState(BaseModel):
     
     question: str
     retrieved_docs: List[Document] = []
+    decision: str = ""
+    confidence: float = 0.0
     answer: str = ""

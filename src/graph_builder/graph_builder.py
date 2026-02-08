@@ -30,13 +30,35 @@ class GraphBuilder:
         
         # Add nodes
         builder.add_node("retriever", self.nodes.retrieve_docs)
+        builder.add_node("decision_engine", self.nodes.decision_engine)
         builder.add_node("responder", self.nodes.generate_answer)
         
         # Set entry point
         builder.set_entry_point("retriever")
         
         # Add edges
-        builder.add_edge("retriever", "responder")
+        builder.add_edge("retriever", "decision_engine")
+        
+        # Conditional routing from decision_engine
+        def route_decision(state: RAGState):
+            if state.decision == "out_of_scope":
+                return "end"
+            elif state.decision == "need_more_context":
+                # We can either go to a web search node or just to responder 
+                # and let responder handle it (it already has web search logic)
+                return "responder"
+            else: # answer_from_documents
+                return "responder"
+                
+        builder.add_conditional_edges(
+            "decision_engine",
+            route_decision,
+            {
+                "end": END,
+                "responder": "responder"
+            }
+        )
+        
         builder.add_edge("responder", END)
         
         # Compile graph

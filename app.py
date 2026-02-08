@@ -2,7 +2,7 @@
 import os
 
 # Gemini to use v1 (not v1beta)
-os.environ["GOOGLE_GENAI_API_VERSION"] = "v1"
+os.environ["GOOGLE_GENAI_API_VERSION"] = "v1beta"
 
 # Silence USER_AGENT warning
 os.environ["USER_AGENT"] = "CollegeRAG/1.0 (student project)"
